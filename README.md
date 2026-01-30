@@ -88,6 +88,3 @@ git push origin main
 - Use relative paths (`../data/`) so your code works on everyone's computer
 - If you get stuck with Git, ask Samuel or check the error message—most are easy to fix!
 
-## Contact
-
-Questions? Reach out to Samuel on the course Slack.
