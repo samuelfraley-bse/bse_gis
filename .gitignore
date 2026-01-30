@@ -1,0 +1,9 @@
+*/data/
+
+*.spatial
+*.txt
+*.dta
+
+# Ignore R history and app files
+.Rhistory
+.Rapp.history
