@@ -76,15 +76,22 @@ git commit -m "a1 submission - [your name]"
 git push origin main
 ```
 
-## Repeat Each Week
+## Workflow
 
-1. `git pull origin main` (get new assignment)
-2. Work in RStudio (scripts, data, outputs)
-3. `git add .` → `git commit -m "..."` → `git push origin main` (submit)
+Since everyone works on separate scripts and files, we use a single `main` branch.
+
+1. **Before you start:** `git pull origin main` (get new assignment)
+2. **While working:** Edit your own R scripts in the `scripts/` folder
+3. **When done:** Commit and push your work:
+   ```powershell
+   git add .
+   git commit -m "a1 submission - [your name]"
+   git push origin main
+   ```
 
 ## Tips
 
 - Make sure to download data files to the `data/` folder before running your scripts
 - Use relative paths (`../data/`) so your code works on everyone's computer
-- If you get stuck with Git, ask Samuel or check the error message—most are easy to fix!
-
+- Always `git pull` before starting work to avoid conflicts
+- If you get stuck with Git, check the error message—most are easy to fix!
