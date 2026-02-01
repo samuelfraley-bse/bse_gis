@@ -69,3 +69,4 @@ cat(sprintf("Spatial features saved as GeoJSON: %s\n", geojson_path))
 print(plot)
 
 cat("\nDone!\n")
+
