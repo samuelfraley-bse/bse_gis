@@ -29,19 +29,19 @@ The `data/` folders are ignored by Git, so you need to download data files local
 
 ### Option A: Using RStudio (Easiest for Beginners!)
 
-**Step 1: Create a new project from the repository**
+**Step 1: Clone the repository**
 1. Open RStudio
 2. Go to **File** → **New Project** → **Version Control** → **Git**
 3. Paste this URL: `https://github.com/samuelfraley-bse/bse_gis.git`
 4. Choose where to save the folder (e.g., `Documents`)
 5. Click **Create Project**
 
-RStudio will automatically clone the repository for you. You now have the folder structure set up!
+RStudio will automatically clone the repository and open it as a project. You now have the folder structure set up!
 
 **Step 2: You're ready to go!**
-- Open R scripts from the `scripts/` folder
-- Download data and place it in the `data/` folder
-- Skip ahead to the "Working with Git in RStudio" section below
+- The `bse_gis.Rproj` file is already loaded
+- Git panel is automatically enabled
+- See the assignment-specific `INSTRUCTIONS.md` in each folder (e.g., `a2/INSTRUCTIONS.md`)
 
 ### Option B: Using Command Line (Windows/Mac)
 
@@ -63,78 +63,83 @@ git clone https://github.com/samuelfraley-bse/bse_gis.git
 cd bse_gis
 ```
 
-Then open the `bse_gis` folder in RStudio using **File** → **Open Project** → select `bse_gis.Rproj`
+Then open the project in RStudio:
+1. Open RStudio
+2. Go to **File** → **Open Project**
+3. Navigate to the `bse_gis` folder and select `bse_gis.Rproj`
 
 ---
 
-## While Working in RStudio
+## For Each Assignment
 
-- Open R scripts in the `scripts/` folder for each assignment
-- Use relative file paths in your code:
-  ```r
-  # Read data from the data folder
-  data <- read.csv("../data/filename.csv")
-  
-  # Save outputs to the outputs folder
-  png("../outputs/my_plot.png")
-  plot(data)
-  dev.off()
-  ```
-- Download assignment data files and place them in the `data/` folder
+Each assignment has its own `INSTRUCTIONS.md` file with detailed steps. For example:
+
+- `a1/INSTRUCTIONS.md` — instructions for assignment 1
+- `a2/INSTRUCTIONS.md` — instructions for assignment 2
+- etc.
+
+**Follow the assignment-specific instructions for:**
+- Where to download data
+- Which scripts to run
+- How to structure your outputs
+
+**General tips while working:**
+- Use relative file paths in your code (the scripts are set up to do this automatically)
+- Download assignment data and place it in the `data/` folder for that assignment
+- Your outputs will be saved to the `outputs/` folder
 
 ---
 
 ## Submitting Your Work
 
+After completing an assignment, push your work to GitHub so your instructor can see it. See the assignment-specific `INSTRUCTIONS.md` for detailed submission steps.
+
+**Quick Summary:**
+
 ### Using RStudio (Recommended)
 
-**Step 1: Open the Git panel**
-- In RStudio, click the **Git** tab (usually in the top-right panel next to Environment/History)
-- You'll see a list of files you've changed
-
-**Step 2: Stage your files**
-- Check the boxes next to the files you want to submit (usually your scripts and outputs)
-- Don't worry about the `data/` folder—it's automatically ignored
-
-**Step 3: Commit your changes**
-1. Click the **Commit** button
-2. Write a message like: `a1 submission - [your name]`
+1. Click the **Git** tab in the top-right panel
+2. Check the boxes next to the files you want to submit (your scripts and outputs)
 3. Click **Commit**
+4. Write a clear message like: `a2 submission - [your name]`
+5. Click **Commit**
+6. Click **Push** (green up arrow) to send to GitHub
 
-**Step 4: Push to GitHub**
-1. Click the **Push** button (green up arrow)
-2. You'll be asked for your GitHub username and password (or personal access token)
-3. Done!
-
-### Using Command Line (If You Prefer)
-
-From PowerShell or Terminal:
+### Using Command Line
 
 ```powershell
 # Navigate to the project folder
 cd Documents/bse_gis
 
-# Stage your changes
-git add .
+# Stage your files
+git add a2/scripts/
+git add a2/outputs/
 
 # Commit with a message
-git commit -m "a1 submission - [your name]"
+git commit -m "a2 submission - [your name]"
 
-# Push to the repo
+# Push to GitHub
 git push origin main
 ```
+
+**Important:** Do not commit the `data/` folder—it's ignored by Git and only needs to exist on your local computer.
 
 ---
 
 ## Before Each New Assignment
 
-Before you start working, pull the latest assignment template:
+Before you start a new assignment, pull the latest files from GitHub:
 
 ### In RStudio:
-- Click the **Pull** button (blue down arrow) in the Git panel
+1. Make sure you have the `bse_gis` project open
+2. Click the **Git** tab in the top-right panel
+3. Click the **Pull** button (blue down arrow)
 
-### In Command Line:
+This will fetch the newest assignment files and any updates.
+
+### In Command Line (Windows PowerShell or Mac Terminal):
 ```powershell
+cd Documents/bse_gis
 git pull origin main
 ```
 
@@ -153,22 +158,24 @@ git pull origin main
 ### I cloned the repo but RStudio doesn't recognize it as a Git project
 
 - Close RStudio
-- Open the `bse_gis` folder
-- Double-click the file named `bse_gis.Rproj`
-- This opens RStudio with Git enabled
+- Double-click the `bse_gis.Rproj` file in your `bse_gis` folder
+- RStudio will open with Git enabled
 
 ### I get an error when pushing: "permission denied"
 
-- You need to set up authentication with GitHub
-- On Windows/Mac, RStudio will prompt you for your GitHub username
-- If it asks for a password, use a **Personal Access Token** instead (not your actual password): https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
+- You need to authenticate with GitHub
+- RStudio will prompt you for your GitHub username
+- If it asks for a password, use a **Personal Access Token** instead (not your actual password)
+- Create one here: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 
 ### I accidentally staged the `data/` folder
 
 - Uncheck the box next to it in the Git panel before committing
-- It won't be pushed to GitHub (the `.gitignore` file protects it anyway)
+- The `.gitignore` file will protect it from being pushed anyway
 
 ### I see a merge conflict
 
-- Ask for help! This usually happens when two people edit the same file
-- Most likely you'll just pull the latest version and re-do your edits
+- This usually happens when two people edit the same file
+- Pull the latest version: click **Pull** in the Git panel
+- Re-do your edits and commit again
+- Ask for help if you're stuck!
