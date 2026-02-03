@@ -162,17 +162,19 @@ cat("\nCreating histogram of country population by continent...\n")
 world_pop_df <- world_pop |>
   st_drop_geometry() |>
   filter(!is.na(total_pop), !is.na(CONTINENT)) |>
+  filter(!CONTINENT %in% c("Antarctica", "Seven seas (open ocean)")) |>
   select(ADM0_A3, CONTINENT, total_pop)  # Keep country code for debugging
 
 # Use population in millions on x axis (no log scale, easier to read)
 p_hist_pop <- ggplot(world_pop_df,
-                     aes(x = total_pop / 1e6)) +  # in millions
-  geom_histogram(bins = 30, fill = "steelblue", color = "white") +
-  facet_wrap(~ CONTINENT, scales = "free_y") +
+                     aes(x = total_pop / 1e6)) +
+  geom_histogram(binwidth = 0.4, fill = "steelblue", color = "white") +
+  scale_x_log10() +
+  facet_wrap(~ CONTINENT) +  # Remove scales = "free_y"
   theme_minimal() +
   labs(
-    title = "Country population distribution by continent",
-    x = "Country total population (millions)",
+    title = "Country population distribution by continent (log scale)",
+    x = "Country total population (millions, log scale)",
     y = "Number of countries"
   )
 
@@ -218,12 +220,13 @@ dist_continent_airports <- world_proj |>
   st_drop_geometry() |>
   select(ADM0_A3, CONTINENT) |>
   left_join(country_dist_airports, by = "ADM0_A3") |>
-  filter(!is.na(avg_dist_km_airport), !is.na(CONTINENT))
+  filter(!is.na(avg_dist_km_airport), !is.na(CONTINENT)) |>
+  filter(!CONTINENT %in% c("Antarctica", "Seven seas (open ocean)"))
 
 p_hist_dist_airports <- ggplot(dist_continent_airports,
                                aes(x = avg_dist_km_airport)) +
   geom_histogram(bins = 30, fill = "tomato", color = "white") +
-  facet_wrap(~ CONTINENT, scales = "free_y") +
+  facet_wrap(~ CONTINENT) +
   theme_minimal() +
   labs(
     title = "Country-level average distance to nearest airport",
