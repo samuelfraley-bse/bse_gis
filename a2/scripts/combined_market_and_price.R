@@ -161,7 +161,8 @@ cat("\nCreating histogram of country population by continent...\n")
 
 world_pop_df <- world_pop |>
   st_drop_geometry() |>
-  filter(!is.na(total_pop), !is.na(CONTINENT))
+  filter(!is.na(total_pop), !is.na(CONTINENT)) |>
+  select(ADM0_A3, CONTINENT, total_pop)  # Keep country code for debugging
 
 # Use population in millions on x axis (no log scale, easier to read)
 p_hist_pop <- ggplot(world_pop_df,
@@ -176,7 +177,7 @@ p_hist_pop <- ggplot(world_pop_df,
   )
 
 hist_pop_path <- file.path(output_dir, "hist_country_population_by_continent.png")
-ggsave(hist_pop_path, p_hist_pop, width = 12, height = 6, dpi = 300)
+ggsave(hist_pop_path, p_hist_pop, width = 12, height = 8, dpi = 300)
 cat(sprintf("Histogram of country population saved to: %s\n", hist_pop_path))
 
 # --------------------------------------------------------------
