@@ -1,7 +1,10 @@
 ---
 title: "Geospatial Analysis Assignment 2"
 subtitle: "Population Distribution, Transportation Infrastructure, and Market Price Analysis Across Africa"
-author: "Your Name"
+author: "Samuel Gerard Fraley
+Selve Rajayogan
+Victor Ruiz Perez
+Xianrui Cao"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   pdf_document:
@@ -42,6 +45,8 @@ This section combines global population data from Natural Earth with administrat
 - **Airports**: Natural Earth 10m airports dataset (ne_10m_airports)
 
 ## Methodology
+
+For continent-level distributions, the Antarctica and Seven seas (open ocean) continents are removed for visibility.
 
 ### Task 1: Map of Total Population by Country
 
