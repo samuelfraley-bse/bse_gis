@@ -7,3 +7,4 @@
 # Ignore R history and app files
 .Rhistory
 .Rapp.history
+.Rproj.user

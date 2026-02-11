@@ -1,5 +1,5 @@
 ---
-title: "Geospatial Analysis Assignment 2"
+title: "Assignment 2"
 subtitle: "Population Distribution, Transportation Infrastructure, and Market Price Analysis Across Africa"
 author: "Samuel Gerard Fraley, Selve Rajayogan, Victor Ruiz Perez, Xianrui Cao"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
