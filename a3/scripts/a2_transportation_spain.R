@@ -2,7 +2,7 @@
 # A2: Transportation Centrality & Isolation (Spain)
 # =============================================================================
 
-required_packages <- c("sf", "dplyr", "ggplot2", "igraph")
+required_packages <- c("sf", "dplyr", "ggplot2", "raster", "gdistance")
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
 ]
@@ -59,79 +59,6 @@ read_layer <- function(data_dir, base_name) {
   stop("Missing ", base_name, " (zip or shapefile) in ", data_dir)
 }
 
-build_road_graph <- function(roads_proj) {
-  roads_valid <- suppressWarnings(sf::st_make_valid(roads_proj))
-  roads_multi <- suppressWarnings(sf::st_cast(roads_valid, "MULTILINESTRING", warn = FALSE))
-  roads_lines <- suppressWarnings(sf::st_cast(roads_multi, "LINESTRING", do_split = TRUE, warn = FALSE))
-
-  coords <- st_coordinates(st_geometry(roads_lines))
-  line_cols <- grep("^L[0-9]+$", colnames(coords), value = TRUE)
-  if (length(line_cols) == 0) {
-    line_id <- rep("1", nrow(coords))
-  } else {
-    line_id <- apply(coords[, line_cols, drop = FALSE], 1, paste, collapse = "_")
-  }
-
-  edge_parts <- lapply(split(seq_len(nrow(coords)), line_id), function(idx) {
-    if (length(idx) < 2) {
-      return(NULL)
-    }
-    data.frame(
-      x1 = coords[idx[-length(idx)], "X"],
-      y1 = coords[idx[-length(idx)], "Y"],
-      x2 = coords[idx[-1], "X"],
-      y2 = coords[idx[-1], "Y"],
-      stringsAsFactors = FALSE
-    )
-  })
-
-  edges <- dplyr::bind_rows(edge_parts)
-  if (nrow(edges) == 0) {
-    stop("No edges built from roads.")
-  }
-
-  edges <- edges %>%
-    dplyr::mutate(
-      from_key = paste(round(x1, 2), round(y1, 2), sep = "_"),
-      to_key = paste(round(x2, 2), round(y2, 2), sep = "_"),
-      weight_m = sqrt((x2 - x1)^2 + (y2 - y1)^2)
-    ) %>%
-    dplyr::filter(from_key != to_key, weight_m > 0)
-
-  node_keys <- unique(c(edges$from_key, edges$to_key))
-  node_ids <- seq_along(node_keys)
-  id_map <- setNames(as.character(node_ids), node_keys)
-
-  edges_graph <- edges %>%
-    dplyr::transmute(
-      from = unname(id_map[from_key]),
-      to = unname(id_map[to_key]),
-      weight_m = weight_m
-    )
-
-  g <- igraph::graph_from_data_frame(
-    d = edges_graph,
-    directed = FALSE,
-    vertices = data.frame(name = as.character(node_ids), stringsAsFactors = FALSE)
-  )
-  g <- igraph::simplify(
-    g,
-    remove.multiple = TRUE,
-    remove.loops = TRUE,
-    edge.attr.comb = list(weight_m = "min", "ignore")
-  )
-
-  xy <- do.call(rbind, strsplit(node_keys, "_", fixed = TRUE))
-  nodes <- data.frame(
-    node_id = as.character(node_ids),
-    x = as.numeric(xy[, 1]),
-    y = as.numeric(xy[, 2]),
-    stringsAsFactors = FALSE
-  )
-  nodes_sf <- st_as_sf(nodes, coords = c("x", "y"), crs = st_crs(roads_proj))
-
-  list(graph = g, nodes_sf = nodes_sf)
-}
 
 script_dir <- detect_script_dir()
 project_dir <- if (basename(script_dir) == "scripts") dirname(script_dir) else normalizePath("a3", mustWork = FALSE)
@@ -245,68 +172,59 @@ if ("type" %in% names(roads_crop)) {
   roads_major <- roads_crop
 }
 
-# 3) Build network graph from roads
-roads_proj <- st_transform(roads_major, 3035)
-cities_proj <- st_transform(top10, 3035)
-graph_obj <- build_road_graph(roads_proj)
-g <- graph_obj$graph
-nodes_sf <- graph_obj$nodes_sf
+# 3) Build conductance raster from road data (WGS84 for gdistance geoCorrection)
+message("Building friction surface over Spain...")
+roads_wgs  <- sf::st_transform(roads_major, 4326)
+cities_wgs <- sf::st_transform(top10, 4326)
 
-cities_proj$node_id <- nodes_sf$node_id[st_nearest_feature(cities_proj, nodes_sf)]
+spain_bb <- sf::st_bbox(sf::st_transform(spain_polygon, 4326))
+r_template <- raster::raster(
+  xmn       = spain_bb[["xmin"]] - 0.5,
+  xmx       = spain_bb[["xmax"]] + 0.5,
+  ymn       = spain_bb[["ymin"]] - 0.5,
+  ymx       = spain_bb[["ymax"]] + 0.5,
+  resolution = 0.05,          # ~5 km cells at Spain's latitude
+  crs        = "+proj=longlat +datum=WGS84"
+)
 
-# 4) Distances from Madrid and Vigo to other selected cities
-origins <- cities_proj %>% dplyr::filter(tolower(NAME) %in% c("madrid", "vigo"))
-if (nrow(origins) != 2) {
-  stop("Expected exactly two origin cities: Madrid and Vigo.")
-}
+# Conductance surface: road cells = 1 (baseline), off-road = 0.1 (10x penalty)
+# With geoCorrection(type="c"), costDistance = sum(d_m / conductance), so
+# road cells cost actual metres and off-road cells cost 10x actual metres.
+raster::values(r_template) <- 0.1
+roads_sp <- sf::as_Spatial(roads_wgs)
+r_roads  <- raster::rasterize(roads_sp, r_template, field = 1, background = NA)
+r_conduct <- r_template
+r_conduct[!is.na(r_roads)] <- 1
 
-dist_rows <- lapply(seq_len(nrow(origins)), function(i) {
-  origin_name <- origins$NAME[i]
-  origin_node <- origins$node_id[i]
-  d <- igraph::distances(
-    g,
-    v = as.character(origin_node),
-    to = as.character(cities_proj$node_id),
-    weights = igraph::E(g)$weight_m
-  )
+# 4) Transition layer and least-cost distances
+# geoCorrection(type="c") divides conductance by cell-centre distance so
+# costDistance returns metres of road-equivalent travel (roads ~10x cheaper)
+message("Building transition layer (may take a moment)...")
+tr    <- gdistance::transition(r_conduct, transitionFunction = mean, directions = 8)
+tr_gc <- gdistance::geoCorrection(tr, type = "c", multpl = FALSE)
+
+cities_sp  <- sf::as_Spatial(cities_wgs)
+origin_idx <- which(tolower(cities_wgs$NAME) %in% c("madrid", "vigo"))
+
+dist_rows <- lapply(origin_idx, function(i) {
+  message("  costDistance from ", cities_wgs$NAME[i], "...")
+  d <- gdistance::costDistance(tr_gc, cities_sp[i, ], cities_sp)
   data.frame(
-    origin = origin_name,
-    destination = cities_proj$NAME,
-    distance_km = as.numeric(d[1, ]) / 1000,
+    origin      = cities_wgs$NAME[i],
+    destination = cities_wgs$NAME,
+    distance_km = as.numeric(d) / 1000,
     stringsAsFactors = FALSE
   )
 })
 
-network_df <- dplyr::bind_rows(dist_rows)
-
-euclid_mat <- st_distance(origins, cities_proj)
-euclid_rows <- lapply(seq_len(nrow(origins)), function(i) {
-  data.frame(
-    origin = origins$NAME[i],
-    destination = cities_proj$NAME,
-    euclid_km = as.numeric(euclid_mat[i, ]) / 1000,
-    stringsAsFactors = FALSE
-  )
-})
-euclid_df <- dplyr::bind_rows(euclid_rows)
-
-dist_df <- network_df %>%
-  dplyr::left_join(euclid_df, by = c("origin", "destination")) %>%
-  dplyr::mutate(
-    used_fallback = !(is.finite(distance_km) & distance_km > 0),
-    distance_km = dplyr::if_else(used_fallback, euclid_km * 1.25, distance_km)
-  ) %>%
-  dplyr::select(origin, destination, distance_km, used_fallback) %>%
-  dplyr::filter(destination != origin, is.finite(distance_km), distance_km > 0)
+dist_df <- dplyr::bind_rows(dist_rows) %>%
+  dplyr::filter(is.finite(distance_km))
 
 if (nrow(dist_df) == 0) {
-  stop("No finite distances found after network + fallback computation.")
+  stop("No finite distances from friction surface. Check raster coverage and road data.")
 }
 
-fallback_n <- sum(dist_df$used_fallback, na.rm = TRUE)
-if (fallback_n > 0) {
-  message("Used straight-line fallback for ", fallback_n, " unreachable pairs.")
-}
+fallback_n <- 0L
 
 summary_df <- dist_df %>%
   dplyr::group_by(origin) %>%
@@ -320,27 +238,25 @@ message("Distance summary (km):")
 print(summary_df)
 
 # 5) Plot density comparison and save outputs
-dist_df <- dist_df %>%
+# Full dist_df goes to CSV; plot_df is filtered to Madrid vs Vigo only
+plot_df <- dist_df %>%
+  dplyr::filter(tolower(origin) %in% c("madrid", "vigo")) %>%
   dplyr::mutate(origin = factor(origin, levels = c("Madrid", "Vigo")))
 
-plot_x_min <- 400
-plot_x_max <- max(ceiling(max(dist_df$distance_km, na.rm = TRUE) / 100) * 100, 800)
-plot_subtitle <- paste0("Distribution over destinations (n = ", nrow(dist_df), " city pairs)")
+summary_df <- summary_df %>%
+  dplyr::filter(tolower(origin) %in% c("madrid", "vigo"))
+
+plot_x_min <- 0
+plot_x_max <- max(ceiling(max(plot_df$distance_km, na.rm = TRUE) / 100) * 100 + 100, 800)
+plot_subtitle <- paste0("Distribution over destinations (n = ", nrow(plot_df), " city pairs)")
 if (fallback_n > 0) {
   plot_subtitle <- paste0(plot_subtitle, " | fallback used for ", fallback_n, " pairs")
 }
 
-distance_plot <- ggplot(dist_df, aes(x = distance_km, fill = origin, color = origin)) +
+distance_plot <- ggplot(plot_df, aes(x = distance_km, fill = origin, color = origin)) +
   geom_density(alpha = 0.25, linewidth = 1.15, adjust = 1.1) +
-  geom_vline(
-    data = summary_df,
-    aes(xintercept = mean_km, color = origin),
-    linetype = "dashed",
-    linewidth = 0.8,
-    show.legend = FALSE
-  ) +
-  coord_cartesian(xlim = c(plot_x_min, plot_x_max), expand = FALSE) +
-  scale_x_continuous(breaks = seq(plot_x_min, plot_x_max, by = 100)) +
+  coord_cartesian(xlim = c(0, plot_x_max), ylim = c(0, 0.004)) +
+  scale_x_continuous(breaks = seq(0, plot_x_max, by = 400)) +
   scale_color_manual(values = c("Madrid" = "#E86A5D", "Vigo" = "#17A2AE")) +
   scale_fill_manual(values = c("Madrid" = "#E86A5D", "Vigo" = "#17A2AE")) +
   theme_minimal(base_size = 13) +
@@ -348,19 +264,13 @@ distance_plot <- ggplot(dist_df, aes(x = distance_km, fill = origin, color = ori
     panel.grid.minor = element_blank(),
     panel.grid.major.x = element_line(color = "#D9D9D9", linewidth = 0.35),
     panel.grid.major.y = element_line(color = "#ECECEC", linewidth = 0.35),
-    plot.title = element_text(face = "bold", size = 15),
-    plot.subtitle = element_text(color = "#555555"),
-    axis.title = element_text(face = "bold"),
-    legend.position = "top",
-    legend.title = element_text(face = "bold")
+    legend.position = "right"
   ) +
   labs(
-    title = "Madrid vs Vigo: Distance Distribution",
-    subtitle = plot_subtitle,
-    x = "Distance (km)",
-    y = "Density",
-    fill = "Origin city",
-    color = "Origin city"
+    x = "distance",
+    y = "density",
+    fill = "origin",
+    color = "origin"
   )
 
 plot_out <- file.path(output_dir, "a2_madrid_vigo_distances.png")
