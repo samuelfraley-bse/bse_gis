@@ -171,7 +171,7 @@ build_panel_from_spei_nc <- function(spei_nc, us_regions) {
   start_year <- end_year - 49
 
   panel_monthly %>%
-    dplyr::filter(year >= start_year, year <= end_year) %>%
+    dplyr::filter(year >= start_year, year <= end_year, month == 12) %>%
     dplyr::group_by(region, year) %>%
     dplyr::summarise(spei = mean(spei, na.rm = TRUE), .groups = "drop") %>%
     dplyr::arrange(region, year)
@@ -248,7 +248,7 @@ build_panel_from_csv <- function(panel_csv) {
 
   end_year <- max(panel$year, na.rm = TRUE)
   panel %>%
-    dplyr::filter(year >= end_year - 49, year <= end_year) %>%
+    dplyr::filter(year >= end_year - 49, year <= end_year, month == 12) %>%
     dplyr::arrange(region, year)
 }
 
